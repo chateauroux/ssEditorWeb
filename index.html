@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SS Editor — Screenshot Situation Creator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        ed: {
+                            bg:'#161616',surface:'#1e1e1e',panel:'#1a1a1a',
+                            border:'#2e2e2e',hover:'#2a2a2a',active:'#383838',
+                            text:'#d4d4d4',muted:'#666',accent:'#e09422',accentH:'#eba830',danger:'#e05050',
+                        }
+                    },
+                    fontFamily:{sans:['"DM Sans"','sans-serif'],mono:['"JetBrains Mono"','monospace']}
+                }
+            }
+        }
+    </script>
+    <style>
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{overflow:hidden}
+        ::-webkit-scrollbar{width:6px}
+        ::-webkit-scrollbar-track{background:#1a1a1a}
+        ::-webkit-scrollbar-thumb{background:#444;border-radius:3px}
+        ::-webkit-scrollbar-thumb:hover{background:#666}
+        .tool-btn.active{background:#383838;color:#e09422}
+        .tool-btn:hover:not(.active){background:#2a2a2a}
+        .layer-item{transition:background .1s}
+        .layer-item.active{background:#2e2e2e;border-left:2px solid #e09422}
+        .layer-item:not(.active){border-left:2px solid transparent}
+        .layer-item:hover:not(.active){background:#252525}
+        input[type=range]{-webkit-appearance:none;height:4px;background:#444;border-radius:2px;outline:none;width:100%}
+        input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;background:#e09422;border-radius:50%;cursor:pointer}
+        input[type=number],input[type=text],select{background:#161616;border:1px solid #2e2e2e;color:#d4d4d4;border-radius:4px;padding:3px 6px;font-size:12px;outline:none;font-family:'DM Sans',sans-serif;width:100%}
+        input[type=number]:focus,select:focus{border-color:#e09422}
+        input[type=color]{-webkit-appearance:none;border:1px solid #2e2e2e;border-radius:4px;cursor:pointer;padding:0;background:transparent}
+        input[type=color]::-webkit-color-swatch-wrapper{padding:2px}
+        input[type=color]::-webkit-color-swatch{border:none;border-radius:2px}
+        .toast{animation:tin .25s ease,tout .25s ease 2.5s forwards}
+        @keyframes tin{from{transform:translateY(16px);opacity:0}to{transform:translateY(0);opacity:1}}
+        @keyframes tout{from{opacity:1}to{opacity:0}}
+        .text-overlay{position:absolute;z-index:50;background:transparent;border:1px dashed #e09422;color:#fff;outline:none;resize:none;padding:2px 4px;min-width:60px;min-height:24px;line-height:1.3;overflow:hidden}
+        .ctx-menu{display:none;position:fixed;z-index:200;background:#1e1e1e;border:1px solid #333;border-radius:6px;padding:4px 0;min-width:170px;box-shadow:0 8px 32px rgba(0,0,0,.7)}
+        .ctx-menu.show{display:block}
+        .ctx-item{padding:6px 14px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px;color:#d4d4d4}
+        .ctx-item:hover{background:#333}
+        .ctx-item.danger{color:#e05050}
+        .ctx-item.disabled{opacity:.3;pointer-events:none}
+        .ctx-sep{height:1px;background:#2e2e2e;margin:4px 0}
+        .dropdown{display:none;position:absolute;z-index:100;background:#1e1e1e;border:1px solid #333;border-radius:6px;padding:4px 0;min-width:180px;box-shadow:0 8px 32px rgba(0,0,0,.7)}
+        .dropdown.show{display:block}
+        .preset-btn{transition:all .15s}
+        .preset-btn:hover{background:#383838 !important;color:#e09422 !important}
+        .asset-thumb{transition:all .15s;position:relative;overflow:hidden}
+        .asset-thumb:hover .asset-del{opacity:1}
+        .asset-del{opacity:0;transition:opacity .15s}
+    </style>
+</head>
+<body class="bg-ed-bg text-ed-text font-sans h-screen flex flex-col select-none">
+
+<!-- TOP BAR -->
+<header class="h-9 bg-ed-surface border-b border-ed-border flex items-center px-2 gap-0.5 shrink-0 text-xs z-20">
+    <div class="flex items-center gap-1.5 px-2 mr-1">
+        <i data-lucide="aperture" class="w-4 h-4 text-ed-accent"></i>
+        <span class="font-bold text-sm text-ed-accent tracking-tight">SS Editor</span>
+    </div>
+    <div class="relative">
+        <button id="fileBtn" class="px-2 py-1 rounded hover:bg-ed-hover">File</button>
+        <div id="fileMenu" class="dropdown left-0 top-full mt-0.5">
+            <div class="ctx-item" onclick="newProject()"><i data-lucide="file-plus" class="w-3.5 h-3.5"></i>New Project<span class="ml-auto text-ed-muted text-[10px]">Ctrl+N</span></div>
+            <div class="ctx-item" onclick="openImage()"><i data-lucide="folder-open" class="w-3.5 h-3.5"></i>Open Image...<span class="ml-auto text-ed-muted text-[10px]">Ctrl+O</span></div>
+            <div class="ctx-sep"></div>
+            <div class="ctx-item" onclick="exportAs('png')"><i data-lucide="download" class="w-3.5 h-3.5"></i>Export as PNG</div>
+            <div class="ctx-item" onclick="exportAs('jpg')"><i data-lucide="download" class="w-3.5 h-3.5"></i>Export as JPG</div>
+        </div>
+    </div>
+    <div class="relative">
+        <button id="editBtn" class="px-2 py-1 rounded hover:bg-ed-hover">Edit</button>
+        <div id="editMenu" class="dropdown left-0 top-full mt-0.5">
+            <div class="ctx-item" onclick="undo();closeMenus()"><i data-lucide="undo-2" class="w-3.5 h-3.5"></i>Undo<span class="ml-auto text-ed-muted text-[10px]">Ctrl+Z</span></div>
+            <div class="ctx-item" onclick="redo();closeMenus()"><i data-lucide="redo-2" class="w-3.5 h-3.5"></i>Redo<span class="ml-auto text-ed-muted text-[10px]">Ctrl+Y</span></div>
+            <div class="ctx-sep"></div>
+            <div class="ctx-item" onclick="delSel();closeMenus()"><i data-lucide="square-dashed" class="w-3.5 h-3.5"></i>Delete Selection<span class="ml-auto text-ed-muted text-[10px]">Del</span></div>
+            <div class="ctx-item" onclick="clearGuides();closeMenus()"><i data-lucide="grid-3x3" class="w-3.5 h-3.5"></i>Clear All Guides</div>
+        </div>
+    </div>
+    <a href="https://github.com" target="_blank" class="px-2 py-1 rounded hover:bg-ed-hover flex items-center gap-1 text-ed-muted hover:text-ed-text shrink-0"><i data-lucide="book-open" class="w-3.5 h-3.5"></i>Help</a>
+    <div class="w-px h-5 bg-ed-border mx-1"></div>
+    <button onclick="exportAs('jpg')" class="px-2 py-1 rounded bg-ed-accent/20 text-ed-accent border border-ed-accent/30 hover:bg-ed-accent/30 text-[10px] font-semibold tracking-wide shrink-0">SAVE JPG</button>
+    <div class="w-px h-5 bg-ed-border mx-1"></div>
+    <button id="undoBtn" onclick="undo()" class="p-1.5 rounded hover:bg-ed-hover disabled:opacity-20" title="Undo"><i data-lucide="undo-2" class="w-3.5 h-3.5"></i></button>
+    <button id="redoBtn" onclick="redo()" class="p-1.5 rounded hover:bg-ed-hover disabled:opacity-20" title="Redo"><i data-lucide="redo-2" class="w-3.5 h-3.5"></i></button>
+    <div class="w-px h-5 bg-ed-border mx-1"></div>
+    <button id="guidesBtn" onclick="toggleGuides()" class="p-1.5 rounded hover:bg-ed-hover text-ed-accent" title="Toggle Guides"><i data-lucide="grid-3x3" class="w-3.5 h-3.5"></i></button>
+    <div class="flex-1"></div>
+    <span class="text-ed-muted font-mono text-[11px] mr-1" id="zoomDisp">100%</span>
+    <button onclick="doZoom(1.25)" class="p-1 rounded hover:bg-ed-hover"><i data-lucide="zoom-in" class="w-3 h-3"></i></button>
+    <button onclick="doZoom(0.8)" class="p-1 rounded hover:bg-ed-hover"><i data-lucide="zoom-out" class="w-3 h-3"></i></button>
+    <button onclick="zoomFit()" class="px-1.5 py-0.5 rounded hover:bg-ed-hover font-mono text-[10px]">FIT</button>
+    <button onclick="zoom100()" class="px-1.5 py-0.5 rounded hover:bg-ed-hover font-mono text-[10px]">1:1</button>
+    <div class="w-px h-5 bg-ed-border mx-1"></div>
+    <span class="text-ed-muted font-mono text-[11px]" id="sizeDisp">1920 x 1080</span>
+    <div class="w-px h-5 bg-ed-border mx-1"></div>
+    <span class="text-ed-muted font-mono text-[10px]" id="posDisp">0, 0</span>
+</header>
+
+<!-- TOOL OPTIONS BAR -->
+<div id="toolOpts" class="h-7 bg-ed-panel border-b border-ed-border flex items-center px-3 gap-3 shrink-0 text-xs"></div>
+
+<!-- MAIN AREA -->
+<div class="flex flex-1 overflow-hidden">
+    <!-- Left Toolbar -->
+    <aside class="w-11 bg-ed-surface border-r border-ed-border flex flex-col items-center py-1.5 gap-0.5 shrink-0">
+        <button class="tool-btn active w-8 h-8 flex items-center justify-center rounded" data-tool="move" title="Move (V)"><i data-lucide="move" class="w-4 h-4"></i></button>
+        <button class="tool-btn w-8 h-8 flex items-center justify-center rounded" data-tool="select" title="Selection (M)"><i data-lucide="box-select" class="w-4 h-4"></i></button>
+        <button class="tool-btn w-8 h-8 flex items-center justify-center rounded" data-tool="crop" title="Crop (C)"><i data-lucide="crop" class="w-4 h-4"></i></button>
+        <button class="tool-btn w-8 h-8 flex items-center justify-center rounded" data-tool="text" title="Text (T)"><i data-lucide="type" class="w-4 h-4"></i></button>
+        <button class="tool-btn w-8 h-8 flex items-center justify-center rounded" data-tool="eraser" title="Eraser (E)"><i data-lucide="eraser" class="w-4 h-4"></i></button>
+        <div class="flex-1"></div>
+        <div class="text-[8px] text-ed-muted font-mono leading-none mb-1" id="toolHint">V</div>
+    </aside>
+
+    <!-- Canvas Area -->
+    <main class="flex-1 overflow-hidden relative" id="canvasArea">
+        <div class="absolute top-0 left-0 w-6 h-6 bg-ed-surface border-r border-b border-ed-border z-10"></div>
+        <canvas id="hRuler" class="absolute top-0 left-6 right-0 h-6 bg-ed-surface border-b border-ed-border z-10 cursor-ns-resize"></canvas>
+        <canvas id="vRuler" class="absolute top-6 left-0 bottom-0 w-6 bg-ed-surface border-r border-ed-border z-10 cursor-ew-resize"></canvas>
+        <div class="absolute top-6 left-6 right-0 bottom-0 overflow-hidden" id="canvasWrap" style="background:#111">
+            <canvas id="mainCanvas" style="position:absolute;top:0;left:0;"></canvas>
+        </div>
+    </main>
+
+    <!-- Right Sidebar (Widened to 340px) -->
+    <aside class="bg-ed-surface border-l border-ed-border flex flex-col shrink-0 overflow-y-auto" style="width:340px;min-width:340px;">
+        <!-- Text Options -->
+        <div id="txtOpts" class="hidden border-b border-ed-border p-2.5 space-y-1.5">
+            <div class="text-[10px] uppercase tracking-wider text-ed-muted font-semibold">Text Options</div>
+            <div class="flex items-center gap-2"><label class="text-[11px] text-ed-muted w-10 shrink-0">Size</label><input type="number" id="txtSize" value="24" min="6" max="400" style="width:60px"></div>
+            <div class="flex items-center gap-2"><label class="text-[11px] text-ed-muted w-10 shrink-0">Color</label><input type="color" id="txtColor" value="#ffffff" class="w-7 h-6"></div>
+            <div class="flex items-center gap-2"><label class="text-[11px] text-ed-muted w-10 shrink-0">Stroke</label><input type="color" id="txtStroke" value="#000000" class="w-7 h-6"><input type="number" id="txtStrokeW" value="3" min="0" max="30" style="width:50px" title="Stroke Width"></div>
+            <div class="flex items-center gap-2"><label class="text-[11px] text-ed-muted w-10 shrink-0">Font</label><select id="txtFont" class="flex-1 text-[11px]"><option>DM Sans</option><option>Arial</option><option>Impact</option><option>Verdana</option><option>Times New Roman</option><option>Courier New</option><option>Georgia</option><option>Tahoma</option></select></div>
+        </div>
+        <!-- Eraser Options -->
+        <div id="eraserOpts" class="hidden border-b border-ed-border p-2.5 space-y-1.5">
+            <div class="text-[10px] uppercase tracking-wider text-ed-muted font-semibold">Eraser</div>
+            <div class="flex items-center gap-2"><label class="text-[11px] text-ed-muted w-10 shrink-0">Size</label><input type="range" id="eraserSize" value="20" min="1" max="200" class="flex-1"><span id="eraserSizeV" class="text-[11px] font-mono w-7 text-right">20</span></div>
+        </div>
+        <!-- SAMP SS Tools -->
+        <div class="border-b border-ed-border p-2.5 space-y-2">
+            <div class="text-[10px] uppercase tracking-wider text-ed-muted font-semibold">SAMP SS Tools</div>
+            <div>
+                <div class="flex items-center justify-between mb-1"><label class="text-[11px] text-ed-muted">Remove Black Thresh.</label><span id="blackThreshV" class="text-[11px] font-mono text-ed-accent">30</span></div>
+                <input type="range" id="blackThresh" min="0" max="128" value="30">
+            </div>
+            <div>
+                <div class="flex items-center justify-between mb-1"><label class="text-[11px] text-ed-muted">Outline Size</label><span id="outlineSizeV" class="text-[11px] font-mono text-ed-accent">2px</span></div>
+                <input type="range" id="outlineSize" min="1" max="10" value="2">
+            </div>
+            <button onclick="processSampLog()" class="w-full py-1.5 text-[11px] font-semibold rounded bg-ed-accent/20 text-ed-accent border border-ed-accent/30 hover:bg-ed-accent/30 transition">Process Chat Log</button>
+            <p class="text-[9px] text-ed-muted leading-tight">Removes black background and draws a sharp outline directly onto the same layer.</p>
+        </div>
+        <!-- Layer Properties -->
+        <div class="border-b border-ed-border p-2.5 space-y-1.5">
+            <div class="text-[10px] uppercase tracking-wider text-ed-muted font-semibold">Properties</div>
+            <div class="flex items-center gap-2"><label class="text-[11px] text-ed-muted w-12 shrink-0">Opacity</label><input type="range" id="lyOpacity" min="0" max="100" value="100" class="flex-1"><span id="lyOpacityV" class="text-[11px] font-mono w-8 text-right">100%</span></div>
+            <div class="flex items-center gap-2"><label class="text-[11px] text-ed-muted w-12 shrink-0">Blend</label><select id="lyBlend" class="flex-1 text-[11px]"><option value="source-over">Normal</option><option value="multiply">Multiply</option><option value="screen">Screen</option><option value="overlay">Overlay</option><option value="darken">Darken</option><option value="lighten">Lighten</option><option value="color-dodge">Color Dodge</option><option value="color-burn">Color Burn</option><option value="hard-light">Hard Light</option><option value="soft-light">Soft Light</option><option value="difference">Difference</option><option value="exclusion">Exclusion</option></select></div>
+            <div class="flex items-center gap-2 text-[11px]"><span class="text-ed-muted w-12 shrink-0">Pos</span><span id="lyPos" class="font-mono text-ed-muted">0, 0</span></div>
+            <div class="flex items-center gap-2 text-[11px]"><span class="text-ed-muted w-12 shrink-0">Size</span><span id="lySize" class="font-mono text-ed-muted">1920 x 1080</span></div>
+        </div>
+        <!-- Canvas Size & Guides & Snapping -->
+        <div class="border-b border-ed-border p-2.5 space-y-2">
+            <div class="text-[10px] uppercase tracking-wider text-ed-muted font-semibold">Canvas Size</div>
+            <div class="flex gap-1.5">
+                <div class="flex-1"><label class="text-[10px] text-ed-muted">W</label><input type="number" id="resizeW" value="1920"></div>
+                <div class="flex-1"><label class="text-[10px] text-ed-muted">H</label><input type="number" id="resizeH" value="1080"></div>
+                <button onclick="applyCanvasResize()" class="px-2 mt-3 rounded bg-ed-hover hover:bg-ed-active text-[10px] font-semibold text-ed-accent border border-ed-border shrink-0">Apply</button>
+            </div>
+            <div class="flex flex-wrap gap-1">
+                <button onclick="setPreset(600,500)" class="preset-btn px-1.5 py-0.5 rounded bg-ed-bg border border-ed-border text-[9px] font-mono text-ed-muted">600x500</button>
+                <button onclick="setPreset(650,650)" class="preset-btn px-1.5 py-0.5 rounded bg-ed-bg border border-ed-border text-[9px] font-mono text-ed-muted">650x650</button>
+                <button onclick="setPreset(800,600)" class="preset-btn px-1.5 py-0.5 rounded bg-ed-bg border border-ed-border text-[9px] font-mono text-ed-muted">800x600</button>
+                <button onclick="setPreset(800,800)" class="preset-btn px-1.5 py-0.5 rounded bg-ed-bg border border-ed-border text-[9px] font-mono text-ed-muted">800x800</button>
+                <button onclick="setPreset(1000,600)" class="preset-btn px-1.5 py-0.5 rounded bg-ed-bg border border-ed-border text-[9px] font-mono text-ed-muted">1000x600</button>
+                <button onclick="setPreset(1280,720)" class="preset-btn px-1.5 py-0.5 rounded bg-ed-bg border border-ed-border text-[9px] font-mono text-ed-muted">1280x720</button>
+                <button onclick="setPreset(1920,1080)" class="preset-btn px-1.5 py-0.5 rounded bg-ed-bg border border-ed-border text-[9px] font-mono text-ed-muted">1920x1080</button>
+            </div>
+            <div class="pt-1 border-t border-ed-border">
+                <div class="text-[10px] uppercase tracking-wider text-ed-muted font-semibold mb-1.5">Guides & Snapping</div>
+                <div class="flex gap-1.5 items-end">
+                    <select id="guideOri" class="text-[11px] py-1" style="width:55px"><option value="v">Vert</option><option value="h">Horiz</option></select>
+                    <input type="number" id="guidePos" value="100" class="flex-1" placeholder="px">
+                    <button onclick="addManualGuide()" class="px-2 py-1 rounded bg-ed-hover hover:bg-ed-active text-[10px] font-semibold text-ed-accent border border-ed-border shrink-0">Add</button>
+                </div>
+                <label class="flex items-center gap-2 mt-2 cursor-pointer">
+                    <input type="checkbox" id="snapToggle" checked class="accent-ed-accent w-3.5 h-3.5 rounded">
+                    <span class="text-[11px] text-ed-text">Snap to Guides (10px)</span>
+                </label>
+            </div>
+        </div>
+        <!-- Favorite Assets -->
+        <div class="border-b border-ed-border p-2.5 space-y-2">
+            <div class="flex items-center justify-between">
+                <span class="text-[10px] uppercase tracking-wider text-ed-muted font-semibold">Favorite Assets</span>
+                <label class="p-1 rounded hover:bg-ed-hover cursor-pointer" title="Save Image to Favorites">
+                    <i data-lucide="star" class="w-3.5 h-3.5 text-ed-accent"></i>
+                    <input type="file" id="assetFileIn" accept="image/*" class="hidden">
+                </label>
+            </div>
+            <div id="assetGrid" class="grid grid-cols-4 gap-1.5 min-h-[40px]">
+                <div class="col-span-4 text-[10px] text-ed-muted text-center py-2">No saved assets yet</div>
+            </div>
+        </div>
+        <!-- Layers List -->
+        <div class="flex-1 flex flex-col overflow-hidden min-h-0">
+            <div class="flex items-center justify-between px-2.5 py-1.5 border-b border-ed-border shrink-0">
+                <span class="text-[10px] uppercase tracking-wider text-ed-muted font-semibold">Layers</span>
+                <div class="flex gap-0.5">
+                    <button onclick="moveLayer(activeIdx,-1)" class="p-1 rounded hover:bg-ed-hover" title="Move Up"><i data-lucide="chevron-up" class="w-3.5 h-3.5"></i></button>
+                    <button onclick="moveLayer(activeIdx,1)" class="p-1 rounded hover:bg-ed-hover" title="Move Down"><i data-lucide="chevron-down" class="w-3.5 h-3.5"></i></button>
+                    <button onclick="addLayer()" class="p-1 rounded hover:bg-ed-hover" title="Add Layer"><i data-lucide="plus" class="w-3.5 h-3.5"></i></button>
+                    <button onclick="dupLayer()" class="p-1 rounded hover:bg-ed-hover" title="Duplicate"><i data-lucide="copy" class="w-3.5 h-3.5"></i></button>
+                    <button onclick="flattenLayers()" class="p-1 rounded hover:bg-ed-hover" title="Flatten"><i data-lucide="layers" class="w-3.5 h-3.5"></i></button>
+                </div>
+            </div>
+            <div id="layersList" class="flex-1 overflow-y-auto"></div>
+        </div>
+    </aside>
+</div>
+
+<!-- Toast Container -->
+<div id="toasts" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-[300] flex flex-col gap-2 pointer-events-none"></div>
+<!-- Context Menu -->
+<div id="ctxMenu" class="ctx-menu"></div>
+<!-- Hidden File Input -->
+<input type="file" id="fileIn" accept="image/*" class="hidden" multiple>
+<!-- New Project Modal -->
+<div id="newModal" class="fixed inset-0 z-[250] hidden items-center justify-center bg-black/60">
+    <div class="bg-ed-surface border border-ed-border rounded-lg p-5 w-80 shadow-2xl">
+        <h3 class="text-sm font-semibold mb-4">New Project</h3>
+        <div class="space-y-3">
+            <div class="flex gap-3">
+                <div class="flex-1"><label class="text-[10px] uppercase tracking-wider text-ed-muted">Width (px)</label><input type="number" id="newW" value="1920" class="mt-1"></div>
+                <div class="flex-1"><label class="text-[10px] uppercase tracking-wider text-ed-muted">Height (px)</label><input type="number" id="newH" value="1080" class="mt-1"></div>
+            </div>
+            <div><label class="text-[10px] uppercase tracking-wider text-ed-muted">Background</label><select id="newBg" class="mt-1"><option value="transparent">Transparent</option><option value="white">White</option><option value="black">Black</option></select></div>
+        </div>
+        <div class="flex justify-end gap-2 mt-5">
+            <button onclick="closeModal()" class="px-3 py-1.5 text-xs rounded hover:bg-ed-hover">Cancel</button>
+            <button onclick="createNew()" class="px-3 py-1.5 text-xs rounded bg-ed-accent text-black font-semibold hover:bg-ed-accentH">Create</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ================================================================
+//  SS Editor — Ultimate Screenshot Situation Creator (v4 FINAL)
+//  Hard-fixed mouse events, unified SAMP processing, robust layout
+// ================================================================
+
+let pW = 1920, pH = 1080;
+let layers = [], activeIdx = 0;
+let tool = 'move';
+let guides = [], showGuides = true;
+let zoom = 1, panX = 0, panY = 0;
+let sel = null;
+let hist = [], histIdx = -1;
+const MAX_HIST = 25;
+
+// Drag state - strict management to prevent ghost events
+let isDragging = false, dragAction = null, dragPayload = {};
+let spaceHeld = false;
+let mouseCanvasX = 0, mouseCanvasY = 0, mouseIsOver = false;
+let snapVisualH = null, snapVisualV = null; // For drawing snap lines
+
+let mainCvs, mainCtx, hRulerCvs, hRulerCtx, vRulerCvs, vRulerCtx, wrapEl;
+let checkerPattern = null;
+const toolKeys = {move:'V',select:'M',crop:'C',text:'T',eraser:'E'};
+
+// ================================================================
+// IndexedDB for Persistent Asset Storage
+// ================================================================
+const DB_NAME = 'SSEditorDB', DB_VER = 1, STORE_NAME = 'assets';
+let db = null;
+
+function openDB() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VER);
+        req.onupgradeneeded = (e) => {
+            const d = e.target.result;
+            if (!d.objectStoreNames.contains(STORE_NAME)) d.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+        };
+        req.onsuccess = (e) => { db = e.target.result; resolve(db); };
+        req.onerror = (e) => reject(e);
+    });
+}
+async function saveAsset(name, dataUrl) {
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).add({ name, dataUrl, ts: Date.now() });
+        tx.oncomplete = () => resolve();
+        tx.onerror = (e) => reject(e);
+    });
+}
+async function getAllAssets() {
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const req = tx.objectStore(STORE_NAME).getAll();
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = (e) => reject(e);
+    });
+}
+async function deleteAsset(id) {
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = (e) => reject(e);
+    });
+}
+async function renderAssetGrid() {
+    const grid = document.getElementById('assetGrid');
+    const assets = await getAllAssets();
+    if (assets.length === 0) {
+        grid.innerHTML = '<div class="col-span-4 text-[10px] text-ed-muted text-center py-2">No saved assets yet</div>';
+        return;
+    }
+    grid.innerHTML = '';
+    for (const a of assets) {
+        const div = document.createElement('div');
+        div.className = 'asset-thumb rounded border border-ed-border bg-ed-bg cursor-pointer aspect-square relative';
+        div.innerHTML = `<img src="${a.dataUrl}" class="w-full h-full object-contain p-0.5" draggable="false">
+            <button class="asset-del absolute top-0 right-0 w-4 h-4 bg-ed-danger/90 text-white rounded-bl flex items-center justify-center"><i data-lucide="x" class="w-2.5 h-2.5"></i></button>`;
+        div.addEventListener('click', (e) => {
+            if (e.target.closest('.asset-del')) return;
+            const img = new Image();
+            img.onload = () => {
+                const l = new Layer(a.name || 'Asset', img.width, img.height);
+                l.ctx.drawImage(img, 0, 0);
+                layers.push(l); activeIdx = layers.length - 1;
+                saveHist(); render(); renderLayers(); syncProps();
+                toast('Asset added');
+            };
+            img.src = a.dataUrl;
+        });
+        div.querySelector('.asset-del').addEventListener('click', async (e) => {
+            e.stopPropagation();
+            await deleteAsset(a.id);
+            renderAssetGrid();
+            toast('Asset removed');
+        });
+        grid.appendChild(div);
+    }
+    lucide.createIcons();
+}
+
+// ================================================================
+// Settings Persistence
+// ================================================================
+function saveSettings() {
+    try {
+        localStorage.setItem('ss_editor_settings', JSON.stringify({
+            pW, pH,
+            blackThresh: document.getElementById('blackThresh').value,
+            outlineSize: document.getElementById('outlineSize').value,
+            snap: document.getElementById('snapToggle').checked,
+            guides: JSON.parse(JSON.stringify(guides))
+        }));
+    } catch(e) {}
+}
+function loadSettings() {
+    try {
+        const s = JSON.parse(localStorage.getItem('ss_editor_settings'));
+        if (!s) return;
+        if (s.pW) pW = s.pW;
+        if (s.pH) pH = s.pH;
+        if (s.blackThresh) document.getElementById('blackThresh').value = s.blackThresh;
+        if (s.outlineSize) document.getElementById('outlineSize').value = s.outlineSize;
+        if (typeof s.snap === 'boolean') document.getElementById('snapToggle').checked = s.snap;
+        if (s.guides) guides = s.guides;
+        document.getElementById('blackThreshV').textContent = document.getElementById('blackThresh').value;
+        document.getElementById('outlineSizeV').textContent = document.getElementById('outlineSize').value + 'px';
+    } catch(e) {}
+}
+
+// ================================================================
+// Layer Class
+// ================================================================
+class Layer {
+    constructor(name, w, h) {
+        this.id = Date.now() + Math.random();
+        this.name = name; this.w = w; this.h = h;
+        this.x = 0; this.y = 0;
+        this.cvs = document.createElement('canvas');
+        this.cvs.width = w; this.cvs.height = h;
+        this.ctx = this.cvs.getContext('2d', { willReadFrequently: true });
+        this.vis = true; this.opacity = 1; this.blend = 'source-over';
+    }
+}
+
+// ================================================================
+// Coordinate Helpers
+// ================================================================
+function screenToCanvas(sx, sy) {
+    return { x: (sx - panX) / zoom, y: (sy - panY) / zoom };
+}
+function canvasToScreen(cx, cy) {
+    return { x: cx * zoom + panX, y: cy * zoom + panY };
+}
+function getMousePos(e) {
+    const rect = mainCvs.getBoundingClientRect();
+    const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    const c = screenToCanvas(sx, sy);
+    return { sx, sy, cx: c.x, cy: c.y };
+}
+function getGuidePosH(e) { const r = wrapEl.getBoundingClientRect(); return Math.round((e.clientY - r.top - panY) / zoom); }
+function getGuidePosV(e) { const r = wrapEl.getBoundingClientRect(); return Math.round((e.clientX - r.left - panX) / zoom); }
+
+// ================================================================
+// Magnetic Snapping
+// ================================================================
+function calcSnappedPos(x, y, w, h) {
+    if (!document.getElementById('snapToggle').checked) return { x, y, snapH: null, snapV: null };
+    const thresh = 10;
+    const hGuides = guides.filter(g => g.ori === 'h').map(g => g.pos);
+    const vGuides = guides.filter(g => g.ori === 'v').map(g => g.pos);
+    
+    let sx = x, sy = y, snapH = null, snapV = null;
+    let bestYDist = Infinity, bestXDist = Infinity;
+    
+    const yPoints = [y, y + h / 2, y + h];
+    const xPoints = [x, x + w / 2, x + w];
+    
+    for (const p of yPoints) {
+        for (const gv of hGuides) {
+            const d = Math.abs(p - gv);
+            if (d < thresh && d < bestYDist) { bestYDist = d; sy = y + (gv - p); snapH = gv; }
+        }
+    }
+    for (const p of xPoints) {
+        for (const gv of vGuides) {
+            const d = Math.abs(p - gv);
+            if (d < thresh && d < bestXDist) { bestXDist = d; sx = x + (gv - p); snapV = gv; }
+        }
+    }
+    return { x: sx, y: sy, snapH, snapV };
+}
+
+// ================================================================
+// Initialization
+// ================================================================
+async function init() {
+    mainCvs = document.getElementById('mainCanvas');
+    mainCtx = mainCvs.getContext('2d');
+    hRulerCvs = document.getElementById('hRuler'); hRulerCtx = hRulerCvs.getContext('2d');
+    vRulerCvs = document.getElementById('vRuler'); vRulerCtx = vRulerCvs.getContext('2d');
+    wrapEl = document.getElementById('canvasWrap');
+
+    await openDB();
+    loadSettings();
+    buildChecker();
+    createDefaultProject();
+    
+    setupCanvasEvents();
+    setupRulerEvents();
+    setupUIEvents();
+    setupKeyboard();
+    
+    window.addEventListener('resize', () => { resizeCanvas(); render(); renderRulers(); });
+    resizeCanvas();
+    zoomFit();
+    render(); renderRulers(); renderLayers(); syncProps(); syncCanvasSize();
+    await renderAssetGrid();
+    lucide.createIcons();
+}
+
+function buildChecker() {
+    const s = 10, c = document.createElement('canvas');
+    c.width = s*2; c.height = s*2;
+    const x = c.getContext('2d');
+    x.fillStyle = '#e0e0e0'; x.fillRect(0,0,s*2,s*2);
+    x.fillStyle = '#c8c8c8'; x.fillRect(0,0,s,s); x.fillRect(s,s,s,s);
+    checkerPattern = mainCtx.createPattern(c, 'repeat');
+}
+
+function createDefaultProject() {
+    layers = []; activeIdx = 0; sel = null;
+    const bg = new Layer('Background', pW, pH);
+    bg.ctx.fillStyle = '#14142a';
+    bg.ctx.fillRect(0, 0, pW, pH);
+    layers.push(bg);
+    layers.push(new Layer('Chat Log', pW, pH));
+    activeIdx = 1;
+    hist = []; histIdx = -1; saveHist();
+}
+
+// ================================================================
+// Main Render
+// ================================================================
+function render() {
+    const W = mainCvs.width, H = mainCvs.height;
+    mainCtx.clearRect(0, 0, W, H);
+
+    // 1. Checkerboard clipped to project bounds
+    mainCtx.save();
+    mainCtx.beginPath();
+    mainCtx.rect(panX, panY, pW * zoom, pH * zoom);
+    mainCtx.clip();
+    mainCtx.translate(panX, panY);
+    mainCtx.scale(zoom, zoom);
+    mainCtx.fillStyle = checkerPattern;
+    mainCtx.fillRect(0, 0, pW, pH);
+    mainCtx.restore();
+
+    // 2. Layers clipped to project bounds
+    mainCtx.save();
+    mainCtx.beginPath();
+    mainCtx.rect(panX, panY, pW * zoom, pH * zoom);
+    mainCtx.clip();
+    for (const l of layers) {
+        if (!l.vis) continue;
+        mainCtx.save();
+        mainCtx.globalAlpha = l.opacity;
+        mainCtx.globalCompositeOperation = l.blend;
+        mainCtx.drawImage(l.cvs, l.x * zoom + panX, l.y * zoom + panY, l.w * zoom, l.h * zoom);
+        mainCtx.restore();
+    }
+    mainCtx.restore();
+    mainCtx.globalCompositeOperation = 'source-over';
+    mainCtx.globalAlpha = 1;
+
+    // 3. Snap visual feedback lines
+    if (isDragging && dragAction === 'move' && (snapVisualH !== null || snapVisualV !== null)) {
+        mainCtx.save();
+        mainCtx.strokeStyle = '#e09422'; mainCtx.lineWidth = 1; mainCtx.setLineDash([3,3]);
+        if (snapVisualV !== null) {
+            const sx = snapVisualV * zoom + panX;
+            mainCtx.beginPath(); mainCtx.moveTo(sx, panY); mainCtx.lineTo(sx, panY + pH * zoom); mainCtx.stroke();
+        }
+        if (snapVisualH !== null) {
+            const sy = snapVisualH * zoom + panY;
+            mainCtx.beginPath(); mainCtx.moveTo(panX, sy); mainCtx.lineTo(panX + pW * zoom, sy); mainCtx.stroke();
+        }
+        mainCtx.restore();
+    }
+
+    // 4. Guides clipped to project
+    if (showGuides) {
+        mainCtx.save();
+        mainCtx.beginPath(); mainCtx.rect(panX, panY, pW * zoom, pH * zoom); mainCtx.clip();
+        mainCtx.strokeStyle = 'rgba(70,170,240,0.65)'; mainCtx.lineWidth = 1; mainCtx.setLineDash([5,4]);
+        for (const g of guides) {
+            mainCtx.beginPath();
+            if (g.ori === 'h') { const sy = g.pos * zoom + panY; mainCtx.moveTo(panX, sy); mainCtx.lineTo(panX + pW * zoom, sy); }
+            else { const sx = g.pos * zoom + panX; mainCtx.moveTo(sx, panY); mainCtx.lineTo(sx, panY + pH * zoom); }
+            mainCtx.stroke();
+        }
+        mainCtx.restore();
+    }
+
+    // 5. Selections
+    if (sel && tool === 'select') drawSelectionMarquee();
+    if (tool === 'crop' && sel) drawCropOverlay();
+
+    // 6. Move BBox + Handles (drawn outside clip so handles are visible beyond canvas edge)
+    if (tool === 'move' && layers[activeIdx] && layers[activeIdx].vis) drawBoundingBox();
+
+    // 7. Eraser cursor
+    if (tool === 'eraser' && mouseIsOver) {
+        const r = Math.max(1, (parseInt(document.getElementById('eraserSize').value) || 20) / 2 * zoom);
+        const sp = canvasToScreen(mouseCanvasX, mouseCanvasY);
+        mainCtx.save(); mainCtx.strokeStyle = 'rgba(255,255,255,0.6)'; mainCtx.lineWidth = 1; mainCtx.setLineDash([3,3]);
+        mainCtx.beginPath(); mainCtx.arc(sp.x, sp.y, r, 0, Math.PI*2); mainCtx.stroke(); mainCtx.restore();
+    }
+
+    // 8. Canvas border
+    mainCtx.strokeStyle = '#555'; mainCtx.lineWidth = 1;
+    mainCtx.strokeRect(panX + 0.5, panY + 0.5, pW * zoom, pH * zoom);
+    document.getElementById('sizeDisp').textContent = pW + ' x ' + pH;
+}
+
+function drawSelectionMarquee() {
+    const sx = sel.x*zoom+panX, sy = sel.y*zoom+panY, sw = sel.w*zoom, sh = sel.h*zoom;
+    mainCtx.save();
+    mainCtx.strokeStyle = '#000'; mainCtx.lineWidth = 1; mainCtx.setLineDash([4,4]);
+    mainCtx.lineDashOffset = -(performance.now()/40) % 8;
+    mainCtx.strokeRect(sx+.5, sy+.5, sw, sh);
+    mainCtx.strokeStyle = '#fff'; mainCtx.lineDashOffset = -(performance.now()/40 + 4) % 8;
+    mainCtx.strokeRect(sx+.5, sy+.5, sw, sh);
+    mainCtx.restore();
+}
+
+function drawCropOverlay() {
+    const sx = sel.x*zoom+panX, sy = sel.y*zoom+panY, sw = sel.w*zoom, sh = sel.h*zoom;
+    mainCtx.save();
+    mainCtx.fillStyle = 'rgba(0,0,0,0.55)';
+    mainCtx.fillRect(panX, panY, pW*zoom, Math.max(0, sy-panY));
+    mainCtx.fillRect(panX, sy+sh, pW*zoom, Math.max(0, panY+pH*zoom-sy-sh));
+    mainCtx.fillRect(panX, sy, Math.max(0, sx-panX), sh);
+    mainCtx.fillRect(sx+sw, sy, Math.max(0, panX+pW*zoom-sx-sw), sh);
+    mainCtx.strokeStyle = '#fff'; mainCtx.lineWidth = 1; mainCtx.setLineDash([4,4]);
+    mainCtx.strokeRect(sx, sy, sw, sh);
+    mainCtx.fillStyle = '#fff'; mainCtx.font = '11px "JetBrains Mono"'; mainCtx.textAlign = 'center';
+    mainCtx.fillText(Math.round(sel.w) + ' x ' + Math.round(sel.h), sx+sw/2, sy+sh+14);
+    mainCtx.restore();
+}
+
+function getHandlePositions(sx, sy, sw, sh) {
+    return [
+        {x:sx,y:sy,t:'nw'},{x:sx+sw/2,y:sy,t:'n'},{x:sx+sw,y:sy,t:'ne'},
+        {x:sx+sw,y:sy+sh/2,t:'e'},{x:sx+sw,y:sy+sh,t:'se'},{x:sx+sw/2,y:sy+sh,t:'s'},
+        {x:sx,y:sy+sh,t:'sw'},{x:sx,y:sy+sh/2,t:'w'}
+    ];
+}
+
+function drawBoundingBox() {
+    const l = layers[activeIdx];
+    const sx = l.x*zoom+panX, sy = l.y*zoom+panY, sw = l.w*zoom, sh = l.h*zoom;
+    mainCtx.save();
+    mainCtx.strokeStyle = '#e09422'; mainCtx.lineWidth = 1.5; mainCtx.setLineDash([]);
+    mainCtx.strokeRect(sx, sy, sw, sh);
+    const hs = 7;
+    mainCtx.fillStyle = '#e09422'; mainCtx.strokeStyle = '#111'; mainCtx.lineWidth = 1;
+    for (const h of getHandlePositions(sx, sy, sw, sh)) {
+        mainCtx.fillRect(h.x-hs/2, h.y-hs/2, hs, hs);
+        mainCtx.strokeRect(h.x-hs/2, h.y-hs/2, hs, hs);
+    }
+    mainCtx.restore();
+}
+
+// ================================================================
+// Rulers
+// ================================================================
+function renderRulers() { renderHRuler(); renderVRuler(); }
+function getTickInterval(z) {
+    if (z >= 4) return 10; if (z >= 2) return 25; if (z >= 1) return 50;
+    if (z >= 0.5) return 100; if (z >= 0.2) return 200; return 500;
+}
+function renderHRuler() {
+    const w = hRulerCvs.width, h = hRulerCvs.height;
+    hRulerCtx.clearRect(0, 0, w, h);
+    hRulerCtx.fillStyle = '#1e1e1e'; hRulerCtx.fillRect(0, 0, w, h);
+    hRulerCtx.fillStyle = '#888'; hRulerCtx.font = '9px "JetBrains Mono"'; hRulerCtx.textAlign = 'center';
+    const intv = getTickInterval(zoom);
+    const s0 = Math.floor(-panX / zoom / intv) * intv;
+    const s1 = Math.ceil((w - panX) / zoom / intv) * intv;
+    hRulerCtx.strokeStyle = '#444'; hRulerCtx.lineWidth = 1;
+    for (let p = s0; p <= s1; p += intv) {
+        const sx = p * zoom + panX;
+        if (sx < -10 || sx > w + 10) continue;
+        const major = p % (intv * (intv < 100 ? 5 : 2)) === 0;
+        const th = major ? h - 2 : h / 2;
+        hRulerCtx.beginPath(); hRulerCtx.moveTo(Math.floor(sx)+.5, h); hRulerCtx.lineTo(Math.floor(sx)+.5, h - th); hRulerCtx.stroke();
+        if (major && p >= 0) hRulerCtx.fillText(Math.round(p), sx, 9);
+    }
+}
+function renderVRuler() {
+    const w = vRulerCvs.width, h = vRulerCvs.height;
+    vRulerCtx.clearRect(0, 0, w, h);
+    vRulerCtx.fillStyle = '#1e1e1e'; vRulerCtx.fillRect(0, 0, w, h);
+    vRulerCtx.fillStyle = '#888'; vRulerCtx.font = '9px "JetBrains Mono"'; vRulerCtx.textAlign = 'right';
+    const intv = getTickInterval(zoom);
+    const s0 = Math.floor(-panY / zoom / intv) * intv;
+    const s1 = Math.ceil((h - panY) / zoom / intv) * intv;
+    vRulerCtx.strokeStyle = '#444'; vRulerCtx.lineWidth = 1;
+    for (let p = s0; p <= s1; p += intv) {
+        const sy = p * zoom + panY;
+        if (sy < -10 || sy > h + 10) continue;
+        const major = p % (intv * (intv < 100 ? 5 : 2)) === 0;
+        const tw = major ? w - 2 : w / 2;
+        vRulerCtx.beginPath(); vRulerCtx.moveTo(w, Math.floor(sy)+.5); vRulerCtx.lineTo(w - tw, Math.floor(sy)+.5); vRulerCtx.stroke();
+        if (major && p >= 0) {
+            vRulerCtx.save(); vRulerCtx.translate(w - tw + 2, sy + 3);
+            vRulerCtx.fillText(Math.round(p), 0, 0); vRulerCtx.restore();
+        }
+    }
+}
+function setupRulerEvents() {
+    let creating = false;
+    hRulerCvs.addEventListener('mousedown', e => { creating = true; guides.push({ori:'h',pos:getGuidePosH(e)}); saveSettings(); render(); });
+    vRulerCvs.addEventListener('mousedown', e => { creating = true; guides.push({ori:'v',pos:getGuidePosV(e)}); saveSettings(); render(); });
+    document.addEventListener('mousemove', e => {
+        if (!creating) return;
+        const last = guides[guides.length - 1]; if (!last) return;
+        last.pos = last.ori === 'h' ? getGuidePosH(e) : getGuidePosV(e);
+        render();
+    });
+    document.addEventListener('mouseup', () => { if (creating) { creating = false; saveSettings(); } });
+}
+
+// ================================================================
+// CANVAS EVENTS (Strict, hardened flow)
+// ================================================================
+function setupCanvasEvents() {
+    mainCvs.addEventListener('mousedown', handleMouseDown);
+    // Mousemove and mouseup on document to catch drags outside canvas
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    mainCvs.addEventListener('wheel', handleWheel, {passive: false});
+    mainCvs.addEventListener('contextmenu', handleContextMenu);
+    mainCvs.addEventListener('mouseenter', () => { mouseIsOver = true; });
+    mainCvs.addEventListener('mouseleave', () => { mouseIsOver = false; if (tool === 'eraser') render(); });
+    (function loop() { if (sel && tool === 'select') render(); requestAnimationFrame(loop); })();
+}
+
+function handleMouseDown(e) {
+    // Panning (Space or Middle Click)
+    if (spaceHeld || e.button === 1) {
+        isDragging = true; dragAction = 'pan';
+        dragPayload = { startX: e.clientX - panX, startY: e.clientY - panY };
+        mainCvs.style.cursor = 'grabbing'; e.preventDefault(); return;
+    }
+    if (e.button !== 0) return;
+    closeMenus();
+    const p = getMousePos(e);
+
+    // Check guide dragging first (except eraser)
+    if (tool !== 'eraser') {
+        const g = findNearGuide(p.cx, p.cy);
+        if (g) {
+            isDragging = true; dragAction = 'guide'; dragPayload = { guide: g };
+            mainCvs.style.cursor = g.ori === 'h' ? 'ns-resize' : 'ew-resize';
+            return;
+        }
+    }
+
+    // Dispatch to active tool
+    switch (tool) {
+        case 'move': startMove(p); break;
+        case 'select': startSelect(p); break;
+        case 'crop': startCrop(p); break;
+        case 'text': startText(p, e); break;
+        case 'eraser': startEraser(p); break;
+    }
+}
+
+function handleMouseMove(e) {
+    const p = getMousePos(e);
+    mouseCanvasX = p.cx; mouseCanvasY = p.cy;
+    document.getElementById('posDisp').textContent = Math.round(p.cx) + ', ' + Math.round(p.cy);
+
+    if (!isDragging) {
+        updateCursorStyle(p);
+        if (tool === 'eraser' && mouseIsOver) render();
+        return;
+    }
+
+    switch (dragAction) {
+        case 'pan':
+            panX = e.clientX - dragPayload.startX;
+            panY = e.clientY - dragPayload.startY;
+            render(); renderRulers(); break;
+        case 'guide':
+            dragPayload.guide.pos = dragPayload.guide.ori === 'h' ? getGuidePosH(e) : getGuidePosV(e);
+            render(); break;
+        case 'move': doMove(p); break;
+        case 'resize': doResize(p); break;
+        case 'select': doSelect(p); break;
+        case 'crop': doCrop(p); break;
+        case 'eraser': doEraser(p); break;
+    }
+}
+
+function handleMouseUp(e) {
+    if (!isDragging) return;
+    
+    if (dragAction === 'pan') mainCvs.style.cursor = '';
+    if (dragAction === 'move' || dragAction === 'resize') saveHist();
+    if (dragAction === 'eraser') saveHist();
+    if (dragAction === 'guide') saveSettings();
+    if (dragAction === 'crop' && sel) applyCrop();
+    if (dragAction === 'select') {
+        if (sel && Math.abs(sel.w) < 3 && Math.abs(sel.h) < 3) sel = null;
+    }
+
+    // Clear snap visuals
+    snapVisualH = null; snapVisualV = null;
+    
+    isDragging = false; dragAction = null; dragPayload = {};
+    render(); syncProps();
+}
+
+function handleWheel(e) {
+    e.preventDefault();
+    const p = getMousePos(e);
+    const f = e.deltaY > 0 ? 0.9 : 1.1;
+    const nz = Math.max(0.02, Math.min(20, zoom * f));
+    panX = p.sx - (p.sx - panX) * (nz / zoom);
+    panY = p.sy - (p.sy - panY) * (nz / zoom);
+    zoom = nz; updateZoomDisplay(); render(); renderRulers();
+}
+
+function handleContextMenu(e) {
+    e.preventDefault();
+    const p = getMousePos(e);
+    const g = findNearGuide(p.cx, p.cy);
+    const items = [];
+    if (g) {
+        items.push({label:'Delete Guide', icon:'trash-2', action:() => { guides = guides.filter(x=>x!==g); saveSettings(); render(); }});
+        items.push({sep:true});
+    }
+    items.push({label: sel ? 'Delete Selection' : 'No Selection', icon:'square-dashed', action: delSel, disabled: !sel});
+    items.push({sep:true});
+    items.push({label:'Clear All Guides', icon:'x', action: () => { clearGuides(); saveSettings(); }});
+    showContextMenu(e.clientX, e.clientY, items);
+}
+
+// ================================================================
+// TOOL IMPLEMENTATIONS (Start / Do)
+// ================================================================
+
+// --- MOVE TOOL ---
+function startMove(p) {
+    const l = layers[activeIdx]; if (!l) return;
+    
+    // Check resize handles first
+    const sx = l.x*zoom+panX, sy = l.y*zoom+panY, sw = l.w*zoom, sh = l.h*zoom;
+    for (const h of getHandlePositions(sx, sy, sw, sh)) {
+        if (Math.abs(p.sx - h.x) < 7 && Math.abs(p.sy - h.y) < 7) {
+            isDragging = true; dragAction = 'resize';
+            dragPayload = { origX: l.x, origY: l.y, origW: l.w, origH: l.h, cx: p.cx, cy: p.cy, handle: h.t };
+            return;
+        }
+    }
+    
+    // Hit test layers (top to bottom)
+    let hitIdx = -1;
+    for (let i = layers.length - 1; i >= 0; i--) {
+        if (!layers[i].vis) continue;
+        const ly = layers[i];
+        const lx = p.cx - ly.x, ly2 = p.cy - ly.y;
+        if (lx < 0 || ly2 < 0 || lx >= ly.w || ly2 >= ly.h) continue;
+        try {
+            const px = ly.ctx.getImageData(Math.max(0,Math.min(Math.floor(lx),ly.w-1)), Math.max(0,Math.min(Math.floor(ly2),ly.h-1)), 1, 1).data;
+            if (px[3] > 10) { hitIdx = i; break; }
+        } catch(_) {}
+    }
+    // Fallback bounding box
+    if (hitIdx < 0) {
+        for (let i = layers.length - 1; i >= 0; i--) {
+            if (!layers[i].vis) continue;
+            const ly = layers[i];
+            if (p.cx >= ly.x && p.cy >= ly.y && p.cx <= ly.x+ly.w && p.cy <= ly.y+ly.h) { hitIdx = i; break; }
+        }
+    }
+    
+    if (hitIdx >= 0 && hitIdx !== activeIdx) { activeIdx = hitIdx; renderLayers(); syncProps(); }
+    if (hitIdx >= 0) {
+        isDragging = true; dragAction = 'move';
+        dragPayload = { origX: layers[activeIdx].x, origY: layers[activeIdx].y, mx: p.cx, my: p.cy };
+        snapVisualH = null; snapVisualV = null;
+    }
+    render();
+}
+
+function doMove(p) {
+    const l = layers[activeIdx]; if (!l) return;
+    let rawX = Math.round(dragPayload.origX + p.cx - dragPayload.mx);
+    let rawY = Math.round(dragPayload.origY + p.cy - dragPayload.my);
+    
+    const snapped = calcSnappedPos(rawX, rawY, l.w, l.h);
+    l.x = snapped.x; l.y = snapped.y;
+    snapVisualH = snapped.snapH; snapVisualV = snapped.snapV;
+    
+    render(); syncProps();
+}
+
+function doResize(p) {
+    const l = layers[activeIdx]; if (!l) return;
+    const dx = p.cx - dragPayload.cx, dy = p.cy - dragPayload.cy;
+    let nx = dragPayload.origX, ny = dragPayload.origY, nw = dragPayload.origW, nh = dragPayload.origH;
+    const t = dragPayload.handle;
+    if (t.includes('w')) { nx += dx; nw -= dx; }
+    if (t.includes('e')) { nw += dx; }
+    if (t.includes('n')) { ny += dy; nh -= dy; }
+    if (t.includes('s')) { nh += dy; }
+    if (nw < 4) { nw = 4; if (t.includes('w')) nx = dragPayload.origX + dragPayload.origW - 4; }
+    if (nh < 4) { nh = 4; if (t.includes('n')) ny = dragPayload.origY + dragPayload.origH - 4; }
+    nw = Math.max(1, Math.round(nw)); nh = Math.max(1, Math.round(nh)); nx = Math.round(nx); ny = Math.round(ny);
+    
+    const nc = document.createElement('canvas'); nc.width = nw; nc.height = nh;
+    nc.getContext('2d').drawImage(l.cvs, 0, 0, nw, nh);
+    l.cvs = nc; l.ctx = nc.getContext('2d', { willReadFrequently: true });
+    l.x = nx; l.y = ny; l.w = nw; l.h = nh;
+    render(); syncProps();
+}
+
+// --- SELECTION TOOL ---
+function startSelect(p) {
+    isDragging = true; dragAction = 'select';
+    sel = { x: p.cx, y: p.cy, w: 0, h: 0 };
+    dragPayload = { sx: p.cx, sy: p.cy };
+}
+function doSelect(p) {
+    sel = {
+        x: Math.max(0, Math.min(dragPayload.sx, p.cx)),
+        y: Math.max(0, Math.min(dragPayload.sy, p.cy)),
+        w: Math.min(Math.abs(p.cx - dragPayload.sx), pW),
+        h: Math.min(Math.abs(p.cy - dragPayload.sy), pH)
+    };
+    render();
+}
+
+// --- CROP TOOL ---
+function startCrop(p) {
+    isDragging = true; dragAction = 'crop';
+    sel = { x: p.cx, y: p.cy, w: 0, h: 0 };
+    dragPayload = { sx: p.cx, sy: p.cy };
+}
+function doCrop(p) {
+    sel = {
+        x: Math.max(0, Math.round(Math.min(dragPayload.sx, p.cx))),
+        y: Math.max(0, Math.round(Math.min(dragPayload.sy, p.cy))),
+        w: Math.min(Math.round(Math.abs(p.cx - dragPayload.sx)), pW),
+        h: Math.min(Math.round(Math.abs(p.cy - dragPayload.sy)), pH)
+    };
+    render();
+}
+function applyCrop() {
+    if (!sel || sel.w < 2 || sel.h < 2) { sel = null; return; }
+    const cx = Math.round(sel.x), cy = Math.round(sel.y), cw = Math.round(sel.w), ch = Math.round(sel.h);
+    for (const l of layers) {
+        const nc = document.createElement('canvas'); nc.width = cw; nc.height = ch;
+        nc.getContext('2d').drawImage(l.cvs, cx - l.x, cy - l.y, cw, ch, 0, 0, cw, ch);
+        l.cvs = nc; l.ctx = nc.getContext('2d', { willReadFrequently: true }); l.x = 0; l.y = 0; l.w = cw; l.h = ch;
+    }
+    guides = guides.filter(g => {
+        if (g.ori === 'h') return g.pos >= cy && g.pos <= cy + ch;
+        return g.pos >= cx && g.pos <= cx + cw;
+    }).map(g => ({ ...g, pos: g.pos - (g.ori === 'h' ? cy : cx) }));
+    
+    pW = cw; pH = ch; sel = null;
+    saveHist(); saveSettings(); zoomFit(); render(); renderRulers(); syncCanvasSize();
+    toast('Cropped to ' + cw + ' x ' + ch);
+}
+
+// --- TEXT TOOL ---
+function startText(p, e) {
+    const sx = p.cx * zoom + panX, sy = p.cy * zoom + panY;
+    const fs = parseInt(document.getElementById('txtSize').value) || 24;
+    const ta = document.createElement('textarea');
+    ta.className = 'text-overlay';
+    ta.style.left = sx + 'px'; ta.style.top = sy + 'px';
+    ta.style.fontSize = (fs * zoom) + 'px';
+    ta.style.color = document.getElementById('txtColor').value;
+    ta.style.fontFamily = '"' + document.getElementById('txtFont').value + '", sans-serif';
+    const sw = parseInt(document.getElementById('txtStrokeW').value) || 0;
+    if (sw > 0) {
+        const sc = document.getElementById('txtStroke').value;
+        const s = sw * zoom;
+        ta.style.textShadow = `-${s}px -${s}px 0 ${sc},${s}px -${s}px 0 ${sc},-${s}px ${s}px 0 ${sc},${s}px ${s}px 0 ${sc}`;
+    }
+    wrapEl.appendChild(ta); ta.focus();
+    let done = false;
+    function commit() {
+        if (done) return; done = true;
+        const txt = ta.value.trim();
+        if (txt) createTextLayer(txt, p.cx, p.cy);
+        ta.remove();
+    }
+    ta.addEventListener('blur', commit);
+    ta.addEventListener('keydown', ke => {
+        if (ke.key === 'Enter' && !ke.shiftKey) { ke.preventDefault(); commit(); }
+        if (ke.key === 'Escape') { done = true; ta.remove(); }
+    });
+}
+function createTextLayer(text, cx, cy) {
+    const fs = parseInt(document.getElementById('txtSize').value) || 24;
+    const col = document.getElementById('txtColor').value;
+    const scol = document.getElementById('txtStroke').value;
+    const sw = parseInt(document.getElementById('txtStrokeW').value) || 0;
+    const font = document.getElementById('txtFont').value;
+    const lines = text.split('\n'), lh = fs * 1.3;
+    const tc = document.createElement('canvas').getContext('2d');
+    tc.font = fs + 'px "' + font + '"'; let mw = 0;
+    for (const ln of lines) { const w = tc.measureText(ln).width; if (w > mw) mw = w; }
+    const pad = Math.max(sw + 4, 6);
+    const lw = Math.ceil(mw + pad * 2), lhh = Math.ceil(lines.length * lh + pad * 2);
+    const l = new Layer('Text', lw, lhh);
+    l.x = Math.round(cx - pad); l.y = Math.round(cy - fs - pad);
+    const c = l.ctx; c.font = fs + 'px "' + font + '"'; c.textBaseline = 'top';
+    if (sw > 0) { c.strokeStyle = scol; c.lineWidth = sw * 2; c.lineJoin = 'round'; c.miterLimit = 2; for (let i = 0; i < lines.length; i++) c.strokeText(lines[i], pad, pad + i * lh); }
+    c.fillStyle = col; for (let i = 0; i < lines.length; i++) c.fillText(lines[i], pad, pad + i * lh);
+    layers.push(l); activeIdx = layers.length - 1;
+    saveHist(); render(); renderLayers(); syncProps(); toast('Text layer added');
+}
+
+// --- ERASER TOOL ---
+function startEraser(p) {
+    const l = layers[activeIdx]; if (!l) return;
+    isDragging = true; dragAction = 'eraser';
+    eraseAt(l, p.cx, p.cy); render();
+}
+function doEraser(p) {
+    const l = layers[activeIdx]; if (!l) return;
+    eraseAt(l, p.cx, p.cy); render();
+}
+function eraseAt(l, cx, cy) {
+    const bs = parseInt(document.getElementById('eraserSize').value) || 20;
+    const lx = cx - l.x, ly = cy - l.y;
+    l.ctx.save(); l.ctx.globalCompositeOperation = 'destination-out';
+    l.ctx.beginPath(); l.ctx.arc(lx, ly, Math.max(1, bs / 2), 0, Math.PI * 2); l.ctx.fill();
+    l.ctx.restore();
+}
+
+// --- Guide Proximity ---
+function findNearGuide(cx, cy) {
+    const th = 7 / zoom;
+    for (const g of guides) {
+        if (g.ori === 'h' && Math.abs(cy - g.pos) < th) return g;
+        if (g.ori === 'v' && Math.abs(cx - g.pos) < th) return g;
+    }
+    return null;
+}
+
+// --- Cursor ---
+function updateCursorStyle(p) {
+    if (spaceHeld) { mainCvs.style.cursor = 'grab'; return; }
+    const g = findNearGuide(p.cx, p.cy);
+    if (g && tool !== 'eraser') { mainCvs.style.cursor = g.ori === 'h' ? 'ns-resize' : 'ew-resize'; return; }
+    if (tool === 'move' && layers[activeIdx] && layers[activeIdx].vis) {
+        const l = layers[activeIdx];
+        const sx = l.x*zoom+panX, sy = l.y*zoom+panY, sw = l.w*zoom, sh = l.h*zoom;
+        const curs = {nw:'nw-resize',n:'n-resize',ne:'ne-resize',e:'e-resize',se:'se-resize',s:'s-resize',sw:'sw-resize',w:'w-resize'};
+        for (const h of getHandlePositions(sx,sy,sw,sh)) {
+            if (Math.abs(p.sx-h.x)<7 && Math.abs(p.sy-h.y)<7) { mainCvs.style.cursor = curs[h.t]; return; }
+        }
+        mainCvs.style.cursor = 'move'; return;
+    }
+    if (tool === 'select' || tool === 'crop') { mainCvs.style.cursor = 'crosshair'; return; }
+    if (tool === 'text') { mainCvs.style.cursor = 'text'; return; }
+    if (tool === 'eraser') { mainCvs.style.cursor = 'none'; return; }
+    mainCvs.style.cursor = 'default';
+}
+
+// ================================================================
+// SAMP Chat Log Processing (Single Layer, Direct Outline)
+// ================================================================
+function processSampLog() {
+    const l = layers[activeIdx];
+    if (!l) { toast('Select a layer first', true); return; }
+    const threshold = parseInt(document.getElementById('blackThresh').value) || 30;
+    const outlineW = parseInt(document.getElementById('outlineSize').value) || 2;
+    const w = l.w, h = l.h;
+    
+    // Step 1: Read pixels and create alpha mask
+    const srcData = l.ctx.getImageData(0, 0, w, h);
+    const d = srcData.data;
+    const mask = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) {
+        const r = d[i*4], g = d[i*4+1], b = d[i*4+2];
+        mask[i] = (r <= threshold && g <= threshold && b <= threshold) ? 0 : 255;
+    }
+    
+    // Step 2: Apply mask to original (remove black bg)
+    for (let i = 0; i < w * h; i++) d[i*4+3] = mask[i];
+    
+    // Step 3: Dilation for outline
+    const dilated = new Uint8Array(w * h);
+    const rad = outlineW;
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            let found = false;
+            const yMin = Math.max(0, y - rad), yMax = Math.min(h - 1, y + rad);
+            const xMin = Math.max(0, x - rad), xMax = Math.min(w - 1, x + rad);
+            for (let ny = yMin; ny <= yMax && !found; ny++) {
+                for (let nx = xMin; nx <= xMax && !found; nx++) {
+                    if ((nx-x)*(nx-x) + (ny-y)*(ny-y) <= rad*rad) {
+                        if (mask[ny * w + nx] > 0) found = true;
+                    }
+                }
+            }
+            dilated[y * w + x] = found ? 255 : 0;
+        }
+    }
+    
+    // Step 4: Draw outline directly onto the same layer's pixel data
+    // Outline = dilated AND NOT original mask -> draw black pixel
+    for (let i = 0; i < w * h; i++) {
+        if (dilated[i] > 0 && mask[i] === 0) {
+            d[i*4] = 0;     // R
+            d[i*4+1] = 0;   // G
+            d[i*4+2] = 0;   // B
+            d[i*4+3] = 255; // A (solid black)
+        }
+    }
+    
+    // Step 5: Write modified data back to the SAME layer
+    l.ctx.putImageData(srcData, 0, 0);
+    
+    saveHist(); render(); renderLayers(); syncProps();
+    toast('Chat log processed (black removed, outline drawn)');
+}
+
+// ================================================================
+// Canvas Resize & Presets
+// ================================================================
+function applyCanvasResize() {
+    const nw = Math.max(1, parseInt(document.getElementById('resizeW').value) || pW);
+    const nh = Math.max(1, parseInt(document.getElementById('resizeH').value) || pH);
+    if (nw === pW && nh === pH) return;
+    pW = nw; pH = nh;
+    saveHist(); saveSettings(); zoomFit(); render(); renderRulers(); syncCanvasSize();
+    toast('Canvas resized to ' + pW + ' x ' + pH);
+}
+function setPreset(w, h) {
+    document.getElementById('resizeW').value = w;
+    document.getElementById('resizeH').value = h;
+    applyCanvasResize();
+}
+function syncCanvasSize() {
+    document.getElementById('resizeW').value = pW;
+    document.getElementById('resizeH').value = pH;
+}
+function addManualGuide() {
+    const ori = document.getElementById('guideOri').value;
+    const pos = parseInt(document.getElementById('guidePos').value);
+    if (isNaN(pos)) { toast('Enter a valid pixel value', true); return; }
+    guides.push({ ori, pos }); saveSettings(); render();
+    toast((ori === 'h' ? 'Horizontal' : 'Vertical') + ' guide at ' + pos + 'px');
+}
+
+// ================================================================
+// History
+// ================================================================
+function saveHist() {
+    const snap = {
+        pW, pH, activeIdx, guides: JSON.parse(JSON.stringify(guides)),
+        layers: layers.map(l => ({
+            name:l.name, w:l.w, h:l.h, x:l.x, y:l.y,
+            vis:l.vis, opacity:l.opacity, blend:l.blend,
+            data: l.ctx.getImageData(0, 0, l.cvs.width, l.cvs.height)
+        }))
+    };
+    if (histIdx < hist.length - 1) hist = hist.slice(0, histIdx + 1);
+    hist.push(snap);
+    if (hist.length > MAX_HIST) hist.shift();
+    histIdx = hist.length - 1;
+    updateUndoRedoButtons();
+}
+function undo() { if (histIdx <= 0) return; histIdx--; restoreHist(); }
+function redo() { if (histIdx >= hist.length - 1) return; histIdx++; restoreHist(); }
+function restoreHist() {
+    const s = hist[histIdx];
+    pW = s.pW; pH = s.pH; activeIdx = Math.min(s.activeIdx, s.layers.length - 1);
+    guides = JSON.parse(JSON.stringify(s.guides));
+    layers = s.layers.map(d => {
+        const l = new Layer(d.name, d.w, d.h);
+        l.x = d.x; l.y = d.y; l.vis = d.vis; l.opacity = d.opacity; l.blend = d.blend;
+        l.ctx.putImageData(d.data, 0, 0);
+        return l;
+    });
+    updateUndoRedoButtons(); render(); renderRulers(); renderLayers(); syncProps(); syncCanvasSize(); saveSettings();
+}
+function updateUndoRedoButtons() {
+    document.getElementById('undoBtn').disabled = histIdx <= 0;
+    document.getElementById('redoBtn').disabled = histIdx >= hist.length - 1;
+}
+
+// ================================================================
+// File Operations
+// ================================================================
+function newProject() { closeMenus(); const m = document.getElementById('newModal'); m.classList.remove('hidden'); m.classList.add('flex'); }
+function closeModal() { const m = document.getElementById('newModal'); m.classList.add('hidden'); m.classList.remove('flex'); }
+function createNew() {
+    pW = Math.max(1, parseInt(document.getElementById('newW').value) || 1920);
+    pH = Math.max(1, parseInt(document.getElementById('newH').value) || 1080);
+    const bg = document.getElementById('newBg').value;
+    layers = []; activeIdx = 0; guides = []; sel = null;
+    const l0 = new Layer('Background', pW, pH);
+    if (bg === 'white') { l0.ctx.fillStyle = '#fff'; l0.ctx.fillRect(0, 0, pW, pH); }
+    else if (bg === 'black') { l0.ctx.fillStyle = '#000'; l0.ctx.fillRect(0, 0, pW, pH); }
+    layers.push(l0); layers.push(new Layer('Chat Log', pW, pH));
+    activeIdx = 1; hist = []; histIdx = -1; saveHist(); saveSettings();
+    closeModal(); zoomFit(); render(); renderRulers(); renderLayers(); syncProps(); syncCanvasSize();
+    toast('New project created');
+}
+function openImage() { closeMenus(); document.getElementById('fileIn').click(); }
+function handleFiles(files) {
+    for (const f of files) {
+        if (!f.type.startsWith('image/')) continue;
+        const reader = new FileReader();
+        reader.onload = ev => {
+            const img = new Image();
+            img.onload = () => { addImageAsLayer(img, f.name.replace(/\.[^.]+$/, '')); toast('Loaded: ' + f.name); };
+            img.onerror = () => toast('Failed to load', true);
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(f);
+    }
+}
+function addImageAsLayer(img, name) {
+    const isFirst = layers.length <= 1 && !layerHasContent(layers[0]);
+    if (isFirst) {
+        pW = img.width; pH = img.height;
+        const l = new Layer(name || 'Screenshot', img.width, img.height);
+        l.ctx.drawImage(img, 0, 0);
+        layers = [l, new Layer('Chat Log', img.width, img.height)];
+        activeIdx = 1; hist = []; histIdx = -1; saveHist(); saveSettings(); zoomFit();
+    } else {
+        const l = new Layer(name || 'Image', img.width, img.height);
+        l.ctx.drawImage(img, 0, 0);
+        layers.push(l); activeIdx = layers.length - 1; saveHist();
+    }
+    render(); renderRulers(); renderLayers(); syncProps(); syncCanvasSize();
+}
+function layerHasContent(l) {
+    if (!l) return false;
+    try { const d = l.ctx.getImageData(0, 0, l.w, l.h).data; for (let i = 3; i < d.length; i += 16) if (d[i] > 0) return true; } catch(_) {}
+    return false;
+}
+function exportAs(fmt) {
+    closeMenus();
+    const ec = document.createElement('canvas'); ec.width = pW; ec.height = pH;
+    const ex = ec.getContext('2d');
+    if (fmt === 'jpg') { ex.fillStyle = '#fff'; ex.fillRect(0, 0, pW, pH); }
+    for (const l of layers) {
+        if (!l.vis) continue;
+        ex.save(); ex.globalAlpha = l.opacity; ex.globalCompositeOperation = l.blend;
+        ex.drawImage(l.cvs, l.x, l.y); ex.restore();
+    }
+    const a = document.createElement('a');
+    a.download = 'ss-export.' + fmt;
+    a.href = ec.toDataURL(fmt === 'jpg' ? 'image/jpeg' : 'image/png', 0.95);
+    a.click(); toast('Exported as ' + fmt.toUpperCase());
+}
+function handlePaste(e) {
+    const items = e.clipboardData && e.clipboardData.items; if (!items) return;
+    for (const it of items) {
+        if (it.type.startsWith('image/')) {
+            const blob = it.getAsFile(); const r = new FileReader();
+            r.onload = ev => { const img = new Image(); img.onload = () => { addImageAsLayer(img, 'Pasted'); toast('Pasted'); }; img.src = ev.target.result; };
+            r.readAsDataURL(blob); break;
+        }
+    }
+}
+
+// ================================================================
+// Layers Panel
+// ================================================================
+function renderLayers() {
+    const c = document.getElementById('layersList'); c.innerHTML = '';
+    for (let i = layers.length - 1; i >= 0; i--) {
+        const l = layers[i];
+        const d = document.createElement('div');
+        d.className = 'layer-item flex items-center gap-1.5 px-2 py-1 cursor-pointer' + (i === activeIdx ? ' active' : '');
+        d.onmousedown = (e) => { if (e.button === 0) { activeIdx = i; renderLayers(); syncProps(); render(); } };
+        const th = document.createElement('canvas');
+        th.width = 28; th.height = 18; th.className = 'rounded border border-ed-border shrink-0';
+        const tc = th.getContext('2d');
+        for (let x = 0; x < 28; x += 4) for (let y = 0; y < 18; y += 4) {
+            tc.fillStyle = ((x/4+y/4)%2===0) ? '#ddd' : '#bbb'; tc.fillRect(x, y, 4, 4);
+        }
+        tc.drawImage(l.cvs, 0, 0, l.w, l.h, 0, 0, 28, 18);
+        const eye = document.createElement('button');
+        eye.className = 'p-0.5 rounded hover:bg-ed-hover shrink-0 ' + (l.vis ? 'text-ed-text' : 'text-ed-muted opacity-30');
+        eye.innerHTML = '<i data-lucide="' + (l.vis ? 'eye' : 'eye-off') + '" class="w-3 h-3"></i>';
+        eye.onmousedown = (e) => { e.stopPropagation(); l.vis = !l.vis; renderLayers(); render(); };
+        const nm = document.createElement('span');
+        nm.className = 'text-[11px] flex-1 truncate'; nm.textContent = l.name;
+        const del = document.createElement('button');
+        del.className = 'p-0.5 rounded hover:bg-ed-hover text-ed-muted hover:text-ed-danger shrink-0'; del.style.opacity = '0.3';
+        del.innerHTML = '<i data-lucide="trash-2" class="w-3 h-3"></i>';
+        del.onmousedown = (e) => { e.stopPropagation(); delLayer(i); };
+        del.onmouseenter = () => del.style.opacity = '1';
+        del.onmouseleave = () => del.style.opacity = '0.3';
+        d.append(th, eye, nm, del); c.appendChild(d);
+    }
+    lucide.createIcons();
+}
+function addLayer() { layers.push(new Layer('Layer ' + layers.length, pW, pH)); activeIdx = layers.length - 1; saveHist(); renderLayers(); syncProps(); toast('Layer added'); }
+function dupLayer() {
+    const s = layers[activeIdx]; if (!s) return;
+    const l = new Layer(s.name + ' Copy', s.w, s.h);
+    l.x = s.x + 10; l.y = s.y + 10; l.opacity = s.opacity; l.blend = s.blend; l.ctx.drawImage(s.cvs, 0, 0);
+    layers.push(l); activeIdx = layers.length - 1; saveHist(); renderLayers(); syncProps(); render(); toast('Duplicated');
+}
+function delLayer(i) {
+    if (layers.length <= 1) { toast('Cannot delete the only layer', true); return; }
+    layers.splice(i, 1); if (activeIdx >= layers.length) activeIdx = layers.length - 1;
+    saveHist(); renderLayers(); syncProps(); render();
+}
+function moveLayer(i, dir) {
+    const j = i + dir; if (j < 0 || j >= layers.length) return;
+    [layers[i], layers[j]] = [layers[j], layers[i]];
+    if (activeIdx === i) activeIdx = j; else if (activeIdx === j) activeIdx = i;
+    saveHist(); renderLayers(); render();
+}
+function flattenLayers() {
+    if (layers.length <= 1) return;
+    const fc = document.createElement('canvas'); fc.width = pW; fc.height = pH; const fx = fc.getContext('2d');
+    for (const l of layers) { if (!l.vis) continue; fx.save(); fx.globalAlpha = l.opacity; fx.globalCompositeOperation = l.blend; fx.drawImage(l.cvs, l.x, l.y); fx.restore(); }
+    layers = []; const fl = new Layer('Flattened', pW, pH); fl.ctx.drawImage(fc, 0, 0); layers.push(fl); activeIdx = 0;
+    saveHist(); renderLayers(); syncProps(); render(); toast('Flattened');
+}
+function delSel() {
+    if (!sel || sel.w < 1 || sel.h < 1) return;
+    const l = layers[activeIdx]; if (!l) return;
+    l.ctx.clearRect(Math.round(sel.x - l.x), Math.round(sel.y - l.y), Math.round(sel.w), Math.round(sel.h));
+    sel = null; saveHist(); render(); toast('Selection deleted');
+}
+function clearGuides() { guides = []; saveSettings(); render(); toast('Guides cleared'); }
+function toggleGuides() {
+    showGuides = !showGuides;
+    document.getElementById('guidesBtn').classList.toggle('text-ed-accent', showGuides);
+    document.getElementById('guidesBtn').classList.toggle('text-ed-muted', !showGuides);
+    render();
+}
+
+// ================================================================
+// Properties Panel Sync
+// ================================================================
+function syncProps() {
+    const l = layers[activeIdx]; if (!l) return;
+    document.getElementById('lyOpacity').value = Math.round(l.opacity * 100);
+    document.getElementById('lyOpacityV').textContent = Math.round(l.opacity * 100) + '%';
+    document.getElementById('lyBlend').value = l.blend;
+    document.getElementById('lyPos').textContent = l.x + ', ' + l.y;
+    document.getElementById('lySize').textContent = l.w + ' x ' + l.h;
+}
+
+// ================================================================
+// Zoom Controls
+// ================================================================
+function updateZoomDisplay() { document.getElementById('zoomDisp').textContent = Math.round(zoom * 100) + '%'; }
+function doZoom(f) {
+    const cx = mainCvs.width / 2, cy = mainCvs.height / 2;
+    const nz = Math.max(0.02, Math.min(20, zoom * f));
+    panX = cx - (cx - panX) * (nz / zoom); panY = cy - (cy - panY) * (nz / zoom);
+    zoom = nz; updateZoomDisplay(); render(); renderRulers();
+}
+function zoomFit() {
+    const r = wrapEl.getBoundingClientRect();
+    const zx = (r.width - 40) / pW, zy = (r.height - 40) / pH;
+    zoom = Math.min(zx, zy, 1);
+    panX = (r.width - pW * zoom) / 2; panY = (r.height - pH * zoom) / 2;
+    updateZoomDisplay();
+}
+function zoom100() { zoom = 1; panX = (wrapEl.getBoundingClientRect().width - pW) / 2; panY = (wrapEl.getBoundingClientRect().height - pH) / 2; updateZoomDisplay(); render(); renderRulers(); }
+
+// ================================================================
+// Resize Handler
+// ================================================================
+function resizeCanvas() {
+    const r = wrapEl.getBoundingClientRect();
+    mainCvs.width = r.width; mainCvs.height = r.height;
+    mainCvs.style.width = r.width + 'px'; mainCvs.style.height = r.height + 'px';
+    hRulerCvs.width = r.width; hRulerCvs.height = 24;
+    vRulerCvs.width = 24; vRulerCvs.height = r.height;
+    buildChecker();
+}
+
+// ================================================================
+// UI Bindings
+// ================================================================
+function setupUIEvents() {
+    document.querySelectorAll('.tool-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            tool = btn.dataset.tool;
+            document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('toolHint').textContent = toolKeys[tool] || '';
+            document.getElementById('txtOpts').classList.toggle('hidden', tool !== 'text');
+            document.getElementById('eraserOpts').classList.toggle('hidden', tool !== 'eraser');
+            if (tool !== 'select' && tool !== 'crop') sel = null;
+            render();
+        });
+    });
+    document.getElementById('fileIn').addEventListener('change', e => { handleFiles(e.target.files); e.target.value = ''; });
+    document.getElementById('fileBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleMenu('fileMenu'); });
+    document.getElementById('editBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleMenu('editMenu'); });
+    
+    document.getElementById('lyOpacity').addEventListener('input', e => {
+        const l = layers[activeIdx]; if (!l) return;
+        l.opacity = parseInt(e.target.value) / 100;
+        document.getElementById('lyOpacityV').textContent = e.target.value + '%';
+        render();
+    });
+    document.getElementById('lyOpacity').addEventListener('change', () => saveHist());
+    document.getElementById('lyBlend').addEventListener('change', e => {
+        const l = layers[activeIdx]; if (!l) return;
+        l.blend = e.target.value; render(); saveHist();
+    });
+    document.getElementById('eraserSize').addEventListener('input', e => { document.getElementById('eraserSizeV').textContent = e.target.value; });
+    document.getElementById('blackThresh').addEventListener('input', e => { document.getElementById('blackThreshV').textContent = e.target.value; saveSettings(); });
+    document.getElementById('outlineSize').addEventListener('input', e => { document.getElementById('outlineSizeV').textContent = e.target.value + 'px'; saveSettings(); });
+    document.getElementById('snapToggle').addEventListener('change', () => saveSettings());
+    
+    document.getElementById('assetFileIn').addEventListener('change', async (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+            try { await saveAsset(file.name.replace(/\.[^.]+$/, ''), ev.target.result); await renderAssetGrid(); toast('Asset saved'); }
+            catch(err) { toast('Failed to save asset', true); }
+        };
+        reader.readAsDataURL(file); e.target.value = '';
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#fileBtn') && !e.target.closest('#fileMenu') &&
+            !e.target.closest('#editBtn') && !e.target.closest('#editMenu')) closeMenus();
+    });
+    document.addEventListener('click', () => { document.getElementById('ctxMenu').classList.remove('show'); });
+    document.addEventListener('paste', handlePaste);
+    document.addEventListener('dragover', e => e.preventDefault());
+    document.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
+}
+
+function toggleMenu(id) {
+    const el = document.getElementById(id);
+    const wasOpen = el.classList.contains('show');
+    closeMenus();
+    if (!wasOpen) el.classList.add('show');
+}
+function closeMenus() { document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('show')); }
+
+function showContextMenu(x, y, items) {
+    const m = document.getElementById('ctxMenu'); m.innerHTML = '';
+    for (const it of items) {
+        if (it.sep) { m.innerHTML += '<div class="ctx-sep"></div>'; continue; }
+        const d = document.createElement('div');
+        d.className = 'ctx-item' + (it.disabled ? ' disabled' : '') + (it.danger ? ' danger' : '');
+        d.innerHTML = (it.icon ? '<i data-lucide="' + it.icon + '" class="w-3.5 h-3.5"></i>' : '') + it.label;
+        if (it.action && !it.disabled) d.addEventListener('click', () => { m.classList.remove('show'); it.action(); });
+        m.appendChild(d);
+    }
+    m.style.left = Math.min(x, window.innerWidth - 200) + 'px';
+    m.style.top = Math.min(y, window.innerHeight - items.length * 30) + 'px';
+    m.classList.add('show'); lucide.createIcons();
+}
+
+// ================================================================
+// Keyboard Shortcuts
+// ================================================================
+let arrowTimer = null;
+function setupKeyboard() {
+    document.addEventListener('keydown', e => {
+        const tag = e.target.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        if (e.code === 'Space' && !spaceHeld) { spaceHeld = true; mainCvs.style.cursor = 'grab'; e.preventDefault(); return; }
+        if (!e.ctrlKey && !e.metaKey) {
+            const toolMap = {v:'move', m:'select', c:'crop', t:'text', e:'eraser'};
+            if (toolMap[e.key]) { const btn = document.querySelector('[data-tool="' + toolMap[e.key] + '"]'); if (btn) btn.click(); return; }
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo(); return; }
+        if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); newProject(); return; }
+        if ((e.ctrlKey || e.metaKey) && e.key === 'o') { e.preventDefault(); openImage(); return; }
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); exportAs('png'); return; }
+        if (e.key === 'Delete' || e.key === 'Backspace') { delSel(); return; }
+        if (e.key.startsWith('Arrow') && layers[activeIdx]) {
+            e.preventDefault();
+            const step = e.shiftKey ? 10 : 1;
+            const l = layers[activeIdx];
+            if (e.key === 'ArrowUp') l.y -= step;
+            if (e.key === 'ArrowDown') l.y += step;
+            if (e.key === 'ArrowLeft') l.x -= step;
+            if (e.key === 'ArrowRight') l.x += step;
+            render(); syncProps();
+            if (!arrowTimer) arrowTimer = { saved: false };
+            return;
+        }
+        if (e.key === 'Escape') { sel = null; render(); closeMenus(); closeModal(); }
+    });
+    document.addEventListener('keyup', e => {
+        if (e.code === 'Space') { spaceHeld = false; mainCvs.style.cursor = ''; }
+        if (e.key.startsWith('Arrow') && arrowTimer && !arrowTimer.saved) {
+            arrowTimer.saved = true; saveHist();
+            clearTimeout(arrowTimer.t);
+            arrowTimer.t = setTimeout(() => { arrowTimer = null; }, 300);
+        }
+    });
+}
+
+// ================================================================
+// Toast
+// ================================================================
+function toast(msg, isErr) {
+    const c = document.getElementById('toasts');
+    const d = document.createElement('div');
+    d.className = 'toast px-4 py-2 rounded-lg text-xs font-medium shadow-lg ' +
+        (isErr ? 'bg-ed-danger/90 text-white' : 'bg-ed-surface border border-ed-border text-ed-text');
+    d.textContent = msg; c.appendChild(d);
+    setTimeout(() => d.remove(), 3000);
+}
+
+// ================================================================
+// Start
+// ================================================================
+window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
